@@ -1,37 +1,80 @@
-# FUNCIONES
+# IMPORTACIONES
 from ulid import ULID
+import sqlite3
 
+# FUNCIONES
 def mostrar_producto(producto: dict):
     print(f"nombre: {producto["nombre"]} - stock: {producto["stock"]}")
 
+
+def cargar_nuevo_producto():
+    print("cargando datos...")
+    nombre_producto = input("Ingrese el nombre del producto: ")
+    stock_producto = int( input("Ingrese el stock: ") )
+    id = str(ULID())
+    cursor = conexion.cursor()
+    
+    cursor.execute("""
+        INSERT INTO productos (id, nombre, stock) values (?, ?, ?)                   
+    """, (id, nombre_producto, stock_producto))
+    
+    conexion.commit()
+    cursor.close()
+
+
+def mostrar_productos():
+    print("mostrando datos")
+    cursor = conexion.cursor()
+    cursor.execute("SELECT id, nombre, stock FROM productos")
+    productos_db = cursor.fetchall()
+    
+    for producto in productos_db:
+        print(f"id: {producto[0]} - nombre: {producto[1]} - stock: {producto[2]}")
+    
+    cursor.close()
+
 def borrar_producto():
     id_usuario = int( input("Ingrese el id para borrar: "))
-
-    for producto in listado_productos:
-        if producto["id"] == id_usuario:
-            mostrar_producto(producto)
-            borrar= input("Quiere confirmar el borrado del producto? S/N: ")
-            if borrar.lower() == "s":
-                listado_productos.remove(producto)
-                print("borrado con exito 🗑")
-            break 
-    else:
-        print("El producto no fue encontrado")
+    # tarea completarlo con base de datos
+    cursor = conexion.cursor()
+    cursor.execute("DELETE FROM productos WHERE id=?", (id_usuario,))
+    conexion.commit()
+    cursor.close()
 
 def editar_producto():
     id_usuario = int( input("Ingrese el id para modificar: "))
-    hubo_cambios = False
-
-    for producto in listado_productos:
-        if producto["id"] == id_usuario:
-            nuevo_stock = int(input("Ingrese el nuevo stock: "))
-            producto["stock"] = nuevo_stock
-            mostrar_producto(producto)
-            hubo_cambios = True
-
-    if not hubo_cambios:
+    cursor = conexion.cursor()
+    cursor.execute("SELECT * FROM productos where id=?", (id_usuario,))
+    
+    productos_encontrados = cursor.fetchall()
+    
+    if len(productos_encontrados) == 0:
         print("El producto no fue encontrado")
+        return
+    
+    stock = int( input("Ingrese el nuevo stock") )
+    cursor.execute("UPDATE productos SET stock=? where id=?", (stock, id_usuario))
+    conexion.commit()
+    cursor.close()
 
+
+def reporte_bajo_stock():
+    cantidad_minima = int( input("Ingrese el numero desde el cual considera bajo stock: ") )
+    
+    print("mostrando datos")
+    cursor = conexion.cursor()
+    cursor.execute("SELECT id, nombre, stock FROM productos where stock < ?", (cantidad_minima,))
+    productos_db = cursor.fetchall()
+    
+    if len(productos_db) == 0:
+        print("No hay ningun producto de bajo stock")
+        return
+    
+    for producto in productos_db:
+        print(f"id: {producto[0]} - nombre: {producto[1]} - stock: {producto[2]}")
+    
+    cursor.close()
+    
 def buscar_por_nombre():
     nombre_a_buscar = input("Ingrese el nombre a buscar: ")
     encontramos_producto = False
@@ -44,63 +87,18 @@ def buscar_por_nombre():
     if not encontramos_producto:
         print("El producto no fue encontrado")
 
-def cargar_nuevo_producto():
-    id_siguiente = ULID()
-    # CARGA DE DATOS
-    print("cargando datos...")
-    nombre = input("Ingrese el nombre del producto: ")
-    stock = int( input("Ingrese el stock: ") )
-    
-    nuevo_producto = {
-        "id": id_siguiente,
-        "nombre": nombre,
-        "stock": stock
-    }
-    listado_productos.append(nuevo_producto)
-    
+# INICIO DE APLICACION
+# abrimos la conexion con la base de datos
+conexion = sqlite3.connect("productos_db.db")
 
-def mostrar_productos():
-    # MOSTRAR DATOS
-    print("mostrando datos")
-    for producto in listado_productos:
-        mostrar_producto(producto)
-
-def reporte_bajo_stock():
-    cantidad_minima = int( input("Ingrese el numero desde el cual considera bajo stock: ") )
-    productos_bajo_stock = []
-    
-    # filtrar/calcular la data de interes
-    for producto in listado_productos:
-        if producto["stock"] <= cantidad_minima:
-            productos_bajo_stock.append(producto)
-    
-    # mostrar la data que obtuvimos
-    if len(productos_bajo_stock) == 0:
-        print("No hay ningun producto de bajo stock")
-    else:
-        print("PRODUCTOS CON BAJO STOCK")
-        for producto in productos_bajo_stock:
-            mostrar_producto(producto)
-
-id_siguiente = 4
-listado_productos = [
-    {"id": 1, "nombre": "pc", "stock": 5},
-    {
-        "id": 2,
-        "nombre": "reloj",
-        "stock_actual": 7
-    },
-    {"id": 3, "nombre": "celu", "stock": 5}
-]
-
-# MENU PRINCIPAL
+listado_productos = []
 opcion = "in"
 
+# MENU PRINCIPAL
 while opcion != "0":
     # print opciones
     print("""
-    
-    Bienvenidos a Bazar Lopez, Elija una Opcion:
+    menu de ejemplo:
           1 - cargar datos
           2 - mostrar datos
           3 - buscar por nombre
@@ -108,7 +106,6 @@ while opcion != "0":
           5 - borrar producto
           6 - reporte bajo stock
           0 - salir
-    
     """)
     opcion = input("Ingrese una opcion: ")
     if opcion == "1":
@@ -125,5 +122,6 @@ while opcion != "0":
         reporte_bajo_stock()
     elif opcion == "0":
         print("Gracias por usar la app")
+        conexion.close()
     else:
         print("Opcion incorrecta, intente de nuevo")
