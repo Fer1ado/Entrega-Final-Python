@@ -1,6 +1,39 @@
 # IMPORTACIONES
+from rich.console import Console
+from rich.table import Table
+from rich import print
 from ulid import ULID
+from colorama import *
 import sqlite3
+
+
+
+def print_status(status):
+    print(f"[bold blue italic] {status} [/]")
+
+def print_error(status):
+    print(f"[bold red italic] {status} [/]" )
+
+def print_info(status1, status2 = ""):
+    print(f"[bold green italic] {status1} {status2} [/]")
+
+def interaction(status):
+    return input(Fore.RED + Back.MAGENTA + status)
+
+init(autoreset=True)
+
+def generate_table(name, data):
+    table = Table(title=name)
+    table.add_column("Entrada", justify="left")
+    table.add_column("ID del producto", justify="center", style="cyan")
+    table.add_column("Producto", justify="center", no_wrap=True)
+    table.add_column("STOCK", justify="right", style="yellow")
+
+    for item in data:
+        table.add_row(str(data.index(item)), str(item[0]), str(item[1]), str(item[2]))
+    
+    console = Console()
+    console.print(table)
 
 # FUNCIONES
 def mostrar_producto(producto: dict):
@@ -8,84 +41,117 @@ def mostrar_producto(producto: dict):
 
 
 def cargar_nuevo_producto():
-    print("cargando datos...")
-    nombre_producto = input("Ingrese el nombre del producto: ")
-    stock_producto = int( input("Ingrese el stock: ") )
+    print_status("cargando datos...")
+    # datos de producto
+    nombre_producto = interaction("Ingrese el nombre del producto: ")
+    stock_producto = int( interaction("Ingrese el stock: ") )
     id = str(ULID())
+
+    # conexión con la DB
     cursor = conexion.cursor()
-    
     cursor.execute("""
         INSERT INTO productos (id, nombre, stock) values (?, ?, ?)                   
     """, (id, nombre_producto, stock_producto))
-    
+
+    # mensaje de confirmación
+    print_info(f"Producto {nombre_producto} cargado con éxito")
+
+    # commit de los cambios
     conexion.commit()
     cursor.close()
+    mostrar_productos()
 
 
 def mostrar_productos():
-    print("mostrando datos")
+    print_status("mostrando datos...")
     cursor = conexion.cursor()
     cursor.execute("SELECT id, nombre, stock FROM productos")
     productos_db = cursor.fetchall()
     
-    for producto in productos_db:
-        print(f"id: {producto[0]} - nombre: {producto[1]} - stock: {producto[2]}")
-    
+    # crea la tabla
+    generate_table("LISTADO COMPLETO DE PRODUCTOS DEL BAZAR", productos_db)
     cursor.close()
 
 def borrar_producto():
-    id_usuario = int( input("Ingrese el id para borrar: "))
-    # tarea completarlo con base de datos
+    # datos del usuario
+    print_status("Borrando producto...")
+    id_usuario = interaction("Ingrese el id para borrar: ")
+    # interacicon con db
     cursor = conexion.cursor()
-    cursor.execute("DELETE FROM productos WHERE id=?", (id_usuario,))
-    conexion.commit()
+    cursor.execute(f"SELECT * FROM productos WHERE id=?", (id_usuario,))
+    producto_encontrado = cursor.fetchall()
+
+    if len(producto_encontrado) == 0:
+        print_error("El producto no fue encontrado")
+        return
+
+    else: 
+        cursor.execute("DELETE FROM productos WHERE id=?", (id_usuario,))
+        # mensaje de devolucion
+        print_info(f"Producto borrado con éxito {producto_encontrado}")
+        conexion.commit()
+
     cursor.close()
 
 def editar_producto():
-    id_usuario = int( input("Ingrese el id para modificar: "))
+    print_status("Editando Producto...")
+    # datos del usuario
+    id_usuario = interaction("Ingrese el id para modificar: ")
+    # interacicon con db
     cursor = conexion.cursor()
     cursor.execute("SELECT * FROM productos where id=?", (id_usuario,))
-    
     productos_encontrados = cursor.fetchall()
-    
+    print(productos_encontrados)
+
     if len(productos_encontrados) == 0:
-        print("El producto no fue encontrado")
+        print_error("El producto no fue encontrado")
         return
-    
-    stock = int( input("Ingrese el nuevo stock") )
+    # datos del usuario 
+    print_info("Se seleccionó el siguiente producto para modificar: ",productos_encontrados[0])
+    stock = int( interaction("Ingrese el nuevo stock: ") )
+    # interacicon con db
     cursor.execute("UPDATE productos SET stock=? where id=?", (stock, id_usuario))
+    print_info(f"Producto modificado con éxito, nuevo Stock es: {stock} unidades")
     conexion.commit()
     cursor.close()
 
 
 def reporte_bajo_stock():
-    cantidad_minima = int( input("Ingrese el numero desde el cual considera bajo stock: ") )
-    
-    print("mostrando datos")
+    print_status("Reporte de bajo Stock...")
+    # datos del usuario 
+    cantidad_minima = int( interaction("Ingrese el numero desde el cual considera bajo stock: ") )
+   
+    # interacicon con db
     cursor = conexion.cursor()
-    cursor.execute("SELECT id, nombre, stock FROM productos where stock < ?", (cantidad_minima,))
+    cursor.execute("SELECT id, nombre, stock FROM productos WHERE stock < ?", (cantidad_minima,))
     productos_db = cursor.fetchall()
     
     if len(productos_db) == 0:
-        print("No hay ningun producto de bajo stock")
+        print_error("No hay ningun producto de bajo stock")
         return
     
-    for producto in productos_db:
-        print(f"id: {producto[0]} - nombre: {producto[1]} - stock: {producto[2]}")
-    
+    #Genero tabla con items
+    generate_table("PRODUCTOS CON BAJO STOCK", productos_db) 
     cursor.close()
     
 def buscar_por_nombre():
-    nombre_a_buscar = input("Ingrese el nombre a buscar: ")
-    encontramos_producto = False
+    print_status("Buscando  por Nombre...")
+    # datos del usuario 
+    nombre_a_buscar = interaction("Ingrese el nombre a buscar: ")
+    
+    # interacicon con db
+    cursor = conexion.cursor()
+    cursor.execute(f"SELECT * FROM productos WHERE nombre LIKE '%{(str(nombre_a_buscar))}%' ")
+    productos_encontrados = cursor.fetchall()
 
-    for producto in listado_productos:
-        if nombre_a_buscar in producto["nombre"]:
-            mostrar_producto(producto)
-            encontramos_producto = True
+    if len(productos_encontrados) < 1:
+        print_error("El producto no fue encontrado")
 
-    if not encontramos_producto:
-        print("El producto no fue encontrado")
+    #Genero tabla con items
+    else:
+        generate_table("RESULTADO DE BUSQUEDA POR NOMBRE", productos_encontrados)
+
+    cursor.close()
 
 # INICIO DE APLICACION
 # abrimos la conexion con la base de datos
@@ -98,7 +164,12 @@ opcion = "in"
 while opcion != "0":
     # print opciones
     print("""
-    menu de ejemplo:
+
+
+    [bold italic yellow on red blink]BIEVENIDO AL BAZAR DE CACHO[/]
+
+    [bold magenta italic]QUE TENES GANAS DE HACER?:[/]
+          
           1 - cargar datos
           2 - mostrar datos
           3 - buscar por nombre
